@@ -7,7 +7,7 @@ function distmesh(fd, fh, h0, bbox, pfix) end
 
 # Co jest ten broadcasting aka .+ w 12
 
-function fh(x::T, y::T)::Real where T::Real
+function fh(x::T, y::T) where {T}
     return 0.2
 end
 
@@ -40,6 +40,7 @@ function generate(fd, fh, bbox, h0, pfix)
     tess = DelaunayTessellation()
     aa = map(el -> Point(el[1] * scale + transx, el[2] * scale + transy), eachrow(g))
     aa
+    println(aa)
 
     push!(tess, aa)
     zda = Array{Point2D,1}()
