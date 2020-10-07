@@ -7,6 +7,35 @@ using GeometricalPredicates
 # Arguments
 # fd - funkcja odległości
 
+struct Scaler
+    scale::Any
+    transx::Any
+    transy::Any
+
+    function Scaler(bbox::Array{Int,2})
+        _scale = (abs(1 / (bbox[1] - bbox[2])))
+        new(
+            _scale,
+            (1 + (0 - bbox[1] * _scale)),
+            (1 + (0 - bbox[1, 2] * _scale)),
+        )
+    end
+end
+
+function scaled_point(unscaled_point::Point2D, scaler::Scaler)
+    return Point(
+        getx(unscaled_point) * scaler.scale + scaler.transx,
+        gety(unscaled_point) * scaler.scale + scaler.transy,
+    )
+end
+
+function unscaled_point(scaled_point::Point2D, scaler::Scaler)
+    return Point(
+        getx(scaled_point) / scaler.scale - scaler.transx,
+        gety(scaled_point) / scaler.scale - scaler.transy,
+    )
+end
+
 function fh(x, y)::Real
     #  @info "Value is" s = 0.2
     return 0.2
@@ -51,11 +80,13 @@ function generate(fd, fh, bbox, h0)
     r0 = [1 ./ fh(getx(point), gety(point)) .^ 2 for point in pb]
     r0_max = maximum(r0 ./ maximum(r0))
     pold = Inf
+    scaler = Scaler(bbox)
     scale = abs(1 / (bbox[1] - bbox[2]))
     transx = 1 + (0 - bbox[1] * scale)
     transy = 1 + (0 - bbox[1, 2] * scale)
     pb = [
-        Point(getx(point) * scale + transx, gety(point) * scale + transy)
+        #Point(getx(point) * scale + transx, gety(point) * scale + transy)
+        scaled_point(point, scaler)
         for point in pb if (rand(Float64, size(pb)))[1] < r0_max
     ]
     tesselation = DelaunayTessellation()
@@ -63,28 +94,30 @@ function generate(fd, fh, bbox, h0)
     centers = Array{Point2D,1}()
     for triangle in tesselation
         center = centroid(Primitive(geta(triangle), getb(triangle), getc(triangle)))
-        d = fd([getx(center) gety(center)])
-        # Tutaj jest  blad bo zla dziedzina, operujemy na wartościach przeskalowanych a
-        # funkcja dystansu zwraca rzetelne wyniki dla nieprzeskalowanego punktu
+        unscaled_p = unscaled_point(Point(getx(center), gety(center)), scaler)
+        d = fd([getx(unscaled_p) gety(unscaled_p)])
         if d > -geps
             push!(centers, center)
         end
     end
     centers
+    hbars = Array{Float64,1}()
     barvec = Array{Array{Float64,1},1}()
     for edge in delaunayedges(tesselation)
-        #push!(zdda, sqrt(length2(Line(geta(edge), getb(edge)))) / scale)
+        b = unscaled_point(getb(edge), scaler)
+        a = unscaled_point(geta(edge), scaler)
+        # Obliczamy jako wartość fh() w połowie kazdego bara
+        # push!(hbars, sqrt(length2(Line(a, b))))
         push!(
             barvec,
             [
-                (getx(getb(edge)) - getx(geta(edge))), # / scale -> W celu sprawdznie z matlabem,
-                ((gety(getb(edge)) - gety(geta(edge)))), # / scale,
+              getx(b) - getx(a)
+              gety(b) - gety(a)
             ],
         )
     end
     barvec
     L = [sqrt(sum(v_sum.^2)) for v_sum in barvec]
-    L
 end
 
 function dc(p)
