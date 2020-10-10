@@ -31,8 +31,8 @@ end
 
 function unscaled_point(scaled_point::Point2D, scaler::Scaler)
     return Point(
-        getx(scaled_point) / scaler.scale - scaler.transx,
-        gety(scaled_point) / scaler.scale - scaler.transy,
+        (getx(scaled_point) - scaler.transx) / scaler.scale,
+        (gety(scaled_point) - scaler.transy) / scaler.scale,
     )
 end
 
@@ -72,6 +72,7 @@ function generate(fd, fh, bbox, h0)
 
     ttol = 0.1
     geps = 0.001 * h0
+    Fscale = 1.2
     h1 = calculateh1(h0)
     v1, v2 = extractbox(bbox, h0, h1)
     x, y = meshgrid(v1, v2)
@@ -101,13 +102,15 @@ function generate(fd, fh, bbox, h0)
         end
     end
     centers
-    hbars = Array{Float64,1}()
+    bars = Array{Point2D,1}()
+    indexes = Array{Array{Int64,2}, 1}()
     barvec = Array{Array{Float64,1},1}()
     for edge in delaunayedges(tesselation)
+        push!(indexes, [findindex(tesselation, geta(edge)) findindex(tesselation, getb(edge))])
         b = unscaled_point(getb(edge), scaler)
         a = unscaled_point(geta(edge), scaler)
         # Obliczamy jako wartość fh() w połowie kazdego bara
-        # push!(hbars, sqrt(length2(Line(a, b))))
+        push!(bars, Point(getx(a) + ((getx(b) - getx(a))/2),gety(a) + ((gety(b) - gety(a))/2)))
         push!(
             barvec,
             [
@@ -118,8 +121,21 @@ function generate(fd, fh, bbox, h0)
     end
     barvec
     L = [sqrt(sum(v_sum.^2)) for v_sum in barvec]
+    # Tutaj jest problem, poniewaz implementacja w Matlabie zwraca wartosc 0.2 zamiast wektora/macierzy
+    # zawierajacej wartosci fh(p) => na potrzeby zgodnosci zmienilem narazie na 0.2
+    hbars = 0.2 # [fh(getx(p), gety(p)) for p in bars]
+    L0 = hbars*Fscale*sqrt(sum(L.^2)/sum(hbars.^2))
+    sqrt(sum(L.^2)/sum(hbars.^2))
+    F = [L0-element for element in L]
+    # Fvec=F./L*[1,1].*barvec; => to samo co ponizej ???
+    Fvec = F./L.*barvec
+    [unscaled_point(p, scaler) for p in pb]
+    Fvec
+    b = Fvec.*[1 -1]
+    sort(unique!(indexes), dims = 2)
+    
 end
 
-function dc(p)
+function dc(p)  
     return sqrt(sum(p .^ 2)) - 1
 end
