@@ -3,6 +3,8 @@ using Gadfly
 using LinearAlgebra
 using VoronoiDelaunay
 using GeometricalPredicates
+using SparseArrays
+using Revise
 
 # Arguments
 # fd - funkcja odległości
@@ -24,15 +26,15 @@ end
 
 function scaled_point(unscaled_point::Point2D, scaler::Scaler)
     return Point(
-        getx(unscaled_point) * scaler.scale + scaler.transx,
-        gety(unscaled_point) * scaler.scale + scaler.transy,
+        (getx(unscaled_point) * scaler.scale) + scaler.transx,
+        (gety(unscaled_point) * scaler.scale) + scaler.transy
     )
 end
 
 function unscaled_point(scaled_point::Point2D, scaler::Scaler)
     return Point(
         (getx(scaled_point) - scaler.transx) / scaler.scale,
-        (gety(scaled_point) - scaler.transy) / scaler.scale,
+        (gety(scaled_point) - scaler.transy) / scaler.scale
     )
 end
 
@@ -103,10 +105,11 @@ function generate(fd, fh, bbox, h0)
     end
     centers
     bars = Array{Point2D,1}()
-    indexes = Array{Array{Int64,2}, 1}()
+    indexes = Array{Array{Int64,1}, 1}()
     barvec = Array{Array{Float64,1},1}()
+    points_to_fvces = Dict{Point2D, Array{Float64, 1}}()
     for edge in delaunayedges(tesselation)
-        push!(indexes, [findindex(tesselation, geta(edge)) findindex(tesselation, getb(edge))])
+        push!(indexes, [findindex(tesselation, geta(edge)), findindex(tesselation, getb(edge))])
         b = unscaled_point(getb(edge), scaler)
         a = unscaled_point(geta(edge), scaler)
         # Obliczamy jako wartość fh() w połowie kazdego bara
@@ -118,9 +121,12 @@ function generate(fd, fh, bbox, h0)
               gety(b) - gety(a)
             ],
         )
+        push!(points_to_fvces, geta(edge) => [0, 0])
+        push!(points_to_fvces, getb(edge) => [0, 0])
     end
     barvec
     L = [sqrt(sum(v_sum.^2)) for v_sum in barvec]
+    iterator = 1
     # Tutaj jest problem, poniewaz implementacja w Matlabie zwraca wartosc 0.2 zamiast wektora/macierzy
     # zawierajacej wartosci fh(p) => na potrzeby zgodnosci zmienilem narazie na 0.2
     hbars = 0.2 # [fh(getx(p), gety(p)) for p in bars]
@@ -129,11 +135,23 @@ function generate(fd, fh, bbox, h0)
     F = [L0-element for element in L]
     # Fvec=F./L*[1,1].*barvec; => to samo co ponizej ???
     Fvec = F./L.*barvec
+    for edge in delaunayedges(tesselation)
+        prev_a = points_to_fvces[geta(edge)]
+        prev_b = points_to_fvces[getb(edge)]
+        push!(points_to_fvces, geta(edge) => prev_a + Fvec[iterator])
+        push!(points_to_fvces, getb(edge) => prev_b + (-Fvec[iterator]))
+        iterator = iterator+1
+    end
     [unscaled_point(p, scaler) for p in pb]
-    Fvec
-    b = Fvec.*[1 -1]
-    sort(unique!(indexes), dims = 2)
-    
+    points_to_fvces
+     #for (point, force) in points_to_fvces
+    #    p = unscaled_point(point, scaler)
+    #    np = [getx(p), gety(p)]+(0.2*force)
+    #    println(np)
+    #    x = np[1]
+    #    y = np[2]
+    #    push!(new_p, Point2D(x,y))
+    #end
 end
 
 function dc(p)  
