@@ -1,10 +1,8 @@
-using Revise
 using Test
-using Gadfly
 using LinearAlgebra
 using VoronoiDelaunay
+using Gadfly
 using GeometricalPredicates
-using SparseArrays
 
 # Arguments
 # fd - funkcja odległości
@@ -37,6 +35,7 @@ function unscaled_point(scaled_point::Point2D, scaler::Scaler)
         round((gety(scaled_point) - scaler.transy) / scaler.scale, digits = 4),
     )
 end
+
 
 function fh(x, y)::Real
     #  @info "Value is" s = 0.2
@@ -75,10 +74,13 @@ function generate(fd, fh, bbox, h0)
     ttol = 0.1
     geps = 0.001 * h0
     Fscale = 1.2
+    dptol = 0.001
     deps = sqrt(eps(Float64)) * h0
     h1 = calculateh1(h0)
+    deltat = 0.2
     v1, v2 = extractbox(bbox, h0, h1)
     x, y = meshgrid(v1, v2)
+    final_p = Array{Array{Float64,1},1}()
     shiftevenrows!(x, h0)
     pb = [
         Point(round(row[1], digits = 4), round(row[2], digits = 4))
@@ -90,17 +92,15 @@ function generate(fd, fh, bbox, h0)
     scaler = Scaler(bbox)
     pps = pb
     pb = [
-        #Point(getx(point) * scale + transx, gety(point) * scale + transy)
         scaled_point(point, scaler)
         for point in pb if (rand(Float64, size(pb)))[1] < r0_max
     ]
-    while 1
+    while true
         tesselation = DelaunayTessellation()
         push!(tesselation, pb)
         centers = Array{Point2D,1}()
         interior_points = Array{Point2D,1}()
         for triangle in tesselation
-            # Do usuniecia trojkaty poza 
             center = centroid(Primitive(geta(triangle), getb(triangle), getc(triangle)))
             unscaled_p = unscaled_point(Point(getx(center), gety(center)), scaler)
             d = fd([getx(unscaled_p) gety(unscaled_p)])
@@ -141,11 +141,11 @@ function generate(fd, fh, bbox, h0)
         barvec
         L = [sqrt(sum(v_sum .^ 2)) for v_sum in barvec]
         iterator = 1
-        hbars = 0.2 #[fh(getx(p), gety(p)) for p in bars] 
+        hbars = 0.2 #[fh(getx(p), gety(p)) for p in bars]
         L0 = hbars * Fscale * sqrt(sum(L .^ 2) / sum(hbars .^ 2))
         sqrt(sum(L .^ 2) / sum(hbars .^ 2))
         F = [L0 - element for element in L]
-        #Fvec=F./L*[1,1].*barvec 
+        #Fvec=F./L*[1,1].*barvec
         Fvec = F ./ L .* barvec
         for edge in delaunayedges(interior_tesselation)
             prev_a = points_to_fvces[geta(edge)]
@@ -155,29 +155,43 @@ function generate(fd, fh, bbox, h0)
             iterator = iterator + 1
         end
         new_p = Array{Point2D,1}()
+        d_points = Array{Array{Float64,1},1}()
         for (point, force) in points_to_fvces
             p = unscaled_point(point, scaler)
             np = [getx(p), gety(p)] + 0.2 * force
             push!(new_p, Point2D(np[1], np[2]))
+            d = fd(np)
+            if d < -geps
+                push!(d_points, force)
+            end
         end
         new_p_raw = map(p -> [getx(p), gety(p)], new_p)
-        final_p = Array{Array{Float64,1},1}()
         for p in new_p
             x = getx(p)
             y = gety(p)
             d = fd([x, y])
             if d > 0
-                dgradx = fd([x + deps, y]) / deps
-                dgrady = fd([x, y + deps]) / deps
-                res = [x, y] - [d * dgradx, d * dgrady]
+                dgradx = (fd([x + deps, y])-d)
+                dgrady = (fd([x, y + deps])-d)
+                rdgradx = dgradx/deps
+                rdgrady = dgrady/deps
+              res = [x, y] - [d*rdgradx, d*rdgrady]
                 push!(final_p, res)
-            else    
+            else
                 push!(final_p, [x, y])
             end
         end
-        final_p
-        
-    end
+        pb = map(p -> Point2D(p[1], p[2]), final_p)
+        d_points = map(row -> sum(deltat * row .^ 2), d_points)
+        if maximum(sqrt.(d_points) / h0) < dptol
+            println("CHECK")
+            break
+        end
+   end
+   tex = DelaunayTessellation()
+   push!(tex, map(p -> scaled_point(p, scaler), pb))
+   x, y = getplotxy(delaunayedges(tex))
+   Gadfly.plot(x = x, y=y, Geom.path)
 end
 
 function dc(p)
