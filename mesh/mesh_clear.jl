@@ -99,8 +99,10 @@ function generate(fd, fh, bbox, h0)
         @info "Loop"
         tesselation = DelaunayTessellation()
         @info "Push to first tess"
-        push!(tesselation, pb)
-        centers = Array{Point2D,1}()
+        for p in pb
+            @info "P is" p
+            push!(tesselation, p)
+        end
         interior_points = Array{Point2D,1}()
         for triangle in tesselation
             center = centroid(Primitive(geta(triangle), getb(triangle), getc(triangle)))
@@ -116,11 +118,13 @@ function generate(fd, fh, bbox, h0)
         interior_tesselation = DelaunayTessellation()
         @info "Push to second tess without triangles"
         push!(interior_tesselation, interior_points)
-        centers
         bars = Array{Point2D,1}()
         barvec = Array{Array{Float64,1},1}()
         points_to_fvces = Dict{Point2D,Array{Float64,1}}()
         @info "First iteration over edges started"
+
+        #Point2D(1.4, 1.3464101615137753)
+        #Point2D(1.4002786971987105, 1.3468928792218693)
         for edge in delaunayedges(interior_tesselation)
             b = unscaled_point(getb(edge), scaler)
             a = unscaled_point(geta(edge), scaler)
@@ -145,10 +149,11 @@ function generate(fd, fh, bbox, h0)
         @info "First iteration over edges finished"
         L = [sqrt(sum(v_sum .^ 2)) for v_sum in barvec]
         iterator = 1
-        hbars = 0.2 #[fh(getx(p), gety(p)) for p in bars]
+        hbars = [fh(getx(p), gety(p)) for p in bars]
         L0 = hbars * Fscale * sqrt(sum(L .^ 2) / sum(hbars .^ 2))
         sqrt(sum(L .^ 2) / sum(hbars .^ 2))
-        F = [L0 - element for element in L]
+        F = maximum(L0-L)
+        @info "Force is " F
         #Fvec=F./L*[1,1].*barvec
         Fvec = F ./ L .* barvec
         @info "Final iteration started"
