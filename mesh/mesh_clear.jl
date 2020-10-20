@@ -15,31 +15,31 @@ struct Scaler
     function Scaler(bbox::Array{Int,2})
         _scale = (abs(1 / (bbox[2] - bbox[1])))
         new(
-            round(_scale, digits = 4),
-            round((1 + (0 - bbox[1] * _scale)), digits = 4),
-            round((1 + (0 - bbox[1, 2] * _scale)), digits = 4),
+            _scale,
+            (1 + (0 - bbox[1] * _scale)),
+            (1 + (0 - bbox[1, 2] * _scale)),
         )
     end
 end
 
 function scaled_point(unscaled_point::Point2D, scaler::Scaler)
     return Point(
-        round(((getx(unscaled_point) * scaler.scale) + scaler.transx), digits = 4),
-        round(((gety(unscaled_point) * scaler.scale) + scaler.transy), digits = 4),
+        (getx(unscaled_point) * scaler.scale) + scaler.transx,
+        (gety(unscaled_point) * scaler.scale) + scaler.transy,
     )
 end
 
 function unscaled_point(scaled_point::Point2D, scaler::Scaler)
     return Point(
-        round((getx(scaled_point) - scaler.transx) / scaler.scale, digits = 4),
-        round((gety(scaled_point) - scaler.transy) / scaler.scale, digits = 4),
+        (getx(scaled_point) - scaler.transx) / scaler.scale,
+        (gety(scaled_point) - scaler.transy) / scaler.scale,
     )
 end
 
 
 function fh(x, y)::Real
     #  @info "Value is" s = 0.2
-    return 0.2
+    return 1
 end
 
 function meshgrid(vx::AbstractVector{T}, vy::AbstractVector{T}) where {T}
@@ -83,7 +83,7 @@ function generate(fd, fh, bbox, h0)
     final_p = Array{Array{Float64,1},1}()
     shiftevenrows!(x, h0)
     pb = [
-        Point(round(row[1], digits = 4), round(row[2], digits = 4))
+        Point(row[1], row[2])
         for row in eachrow([x[:] y[:]]) if fd(row) < geps
     ]
     r0 = [1 ./ fh(getx(point), gety(point)) .^ 2 for point in pb]
@@ -96,7 +96,9 @@ function generate(fd, fh, bbox, h0)
         for point in pb if (rand(Float64, size(pb)))[1] < r0_max
     ]
     while true
+        @info "Loop"
         tesselation = DelaunayTessellation()
+        @info "Push to first tess"
         push!(tesselation, pb)
         centers = Array{Point2D,1}()
         interior_points = Array{Point2D,1}()
@@ -112,11 +114,13 @@ function generate(fd, fh, bbox, h0)
         end
         interior_points = unique!(interior_points)
         interior_tesselation = DelaunayTessellation()
+        @info "Push to second tess without triangles"
         push!(interior_tesselation, interior_points)
         centers
         bars = Array{Point2D,1}()
         barvec = Array{Array{Float64,1},1}()
         points_to_fvces = Dict{Point2D,Array{Float64,1}}()
+        @info "First iteration over edges started"
         for edge in delaunayedges(interior_tesselation)
             b = unscaled_point(getb(edge), scaler)
             a = unscaled_point(geta(edge), scaler)
@@ -131,14 +135,14 @@ function generate(fd, fh, bbox, h0)
             push!(
                 barvec,
                 [
-                    round(getx(b) - getx(a), digits = 4)
-                    round(gety(b) - gety(a), digits = 4)
+                    getx(b) - getx(a)
+                    gety(b) - gety(a)
                 ],
             )
             push!(points_to_fvces, geta(edge) => [0, 0])
             push!(points_to_fvces, getb(edge) => [0, 0])
         end
-        barvec
+        @info "First iteration over edges finished"
         L = [sqrt(sum(v_sum .^ 2)) for v_sum in barvec]
         iterator = 1
         hbars = 0.2 #[fh(getx(p), gety(p)) for p in bars]
@@ -147,6 +151,7 @@ function generate(fd, fh, bbox, h0)
         F = [L0 - element for element in L]
         #Fvec=F./L*[1,1].*barvec
         Fvec = F ./ L .* barvec
+        @info "Final iteration started"
         for edge in delaunayedges(interior_tesselation)
             prev_a = points_to_fvces[geta(edge)]
             prev_b = points_to_fvces[getb(edge)]
@@ -154,6 +159,7 @@ function generate(fd, fh, bbox, h0)
             push!(points_to_fvces, getb(edge) => prev_b + (Fvec[iterator]))
             iterator = iterator + 1
         end
+        @info "Final iteration finished"
         new_p = Array{Point2D,1}()
         d_points = Array{Array{Float64,1},1}()
         for (point, force) in points_to_fvces
@@ -165,6 +171,7 @@ function generate(fd, fh, bbox, h0)
                 push!(d_points, force)
             end
         end
+        @info "Mapping points"
         new_p_raw = map(p -> [getx(p), gety(p)], new_p)
         for p in new_p
             x = getx(p)
@@ -181,19 +188,26 @@ function generate(fd, fh, bbox, h0)
                 push!(final_p, [x, y])
             end
         end
-        pb = map(p -> Point2D(p[1], p[2]), final_p)
+        pb = map(p -> scaled_point(Point2D(p[1], p[2]), scaler), final_p)
         d_points = map(row -> sum(deltat * row .^ 2), d_points)
+        @info "Checking break condition"
         if maximum(sqrt.(d_points) / h0) < dptol
-            println("CHECK")
+            @info "Breaking out of loop"
             break
         end
    end
    tex = DelaunayTessellation()
-   push!(tex, map(p -> scaled_point(p, scaler), pb))
+   @info "Push to output tess"
+   @info "Pb size is" size(pb)
+   push!(tex, pb)
    x, y = getplotxy(delaunayedges(tex))
-   Gadfly.plot(x = x, y=y, Geom.path)
+   x = map(p -> (p - scaler.transx) / scaler.scale, x)
+   y = map(p -> (p - scaler.transy) / scaler.scale, y)
+   @info "Plotting started"
+   Gadfly.plot(x = x, y=y, Geom.path, Coord.cartesian(fixed=true))
 end
 
 function dc(p)
+    #return -0.3 + abs(0.7 - sqrt(sum(p .^ 2)))
     return sqrt(sum(p .^ 2)) - 1
 end
