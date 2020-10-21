@@ -15,24 +15,25 @@ struct Scaler
     function Scaler(bbox::Array{Int,2})
         _scale = (abs(1 / (bbox[2] - bbox[1])))
         new(
-            _scale,
-            (1 + (0 - bbox[1] * _scale)),
-            (1 + (0 - bbox[1, 2] * _scale)),
+            round(_scale, digits=4),
+            round((1 + (0 - bbox[1] * _scale)), digits=4),
+            round((1 + (0 - bbox[1, 2] * _scale)), digits=4),
         )
     end
 end
 
+
 function scaled_point(unscaled_point::Point2D, scaler::Scaler)
     return Point(
-        (getx(unscaled_point) * scaler.scale) + scaler.transx,
-        (gety(unscaled_point) * scaler.scale) + scaler.transy,
+        round(((getx(unscaled_point) * scaler.scale) + scaler.transx), digits=4),
+        round(((gety(unscaled_point) * scaler.scale) + scaler.transy), digits=4)
     )
 end
 
 function unscaled_point(scaled_point::Point2D, scaler::Scaler)
     return Point(
-        (getx(scaled_point) - scaler.transx) / scaler.scale,
-        (gety(scaled_point) - scaler.transy) / scaler.scale,
+        round((getx(scaled_point) - scaler.transx) / scaler.scale, digits=4),
+        round((gety(scaled_point) - scaler.transy) / scaler.scale, digits=4)
     )
 end
 
@@ -97,7 +98,8 @@ function generate(fd, fh, bbox, h0)
     ]
     while true
         @info "Loop"
-        tesselation = DelaunayTessellation()
+        pb = unique!(pb)
+        tesselation = DelaunayTessellation(size(pb)[1])
         @info "Push to first tess"
         for p in pb
             @info "P is" p
@@ -115,7 +117,7 @@ function generate(fd, fh, bbox, h0)
             end
         end
         interior_points = unique!(interior_points)
-        interior_tesselation = DelaunayTessellation()
+        interior_tesselation = DelaunayTessellation(size(interior_points)[1])
         @info "Push to second tess without triangles"
         push!(interior_tesselation, interior_points)
         bars = Array{Point2D,1}()
@@ -201,9 +203,10 @@ function generate(fd, fh, bbox, h0)
             break
         end
    end
-   tex = DelaunayTessellation()
+   tex = DelaunayTessellation(size(pb)[1])
    @info "Push to output tess"
    @info "Pb size is" size(pb)
+   pb = unique!(pb)
    push!(tex, pb)
    x, y = getplotxy(delaunayedges(tex))
    x = map(p -> (p - scaler.transx) / scaler.scale, x)
