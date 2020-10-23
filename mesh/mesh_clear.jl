@@ -153,7 +153,6 @@ function generate(fd, fh, bbox, h0)
         iterator = 1
         hbars = [fh(getx(p), gety(p)) for p in bars]
         L0 = hbars * Fscale * sqrt(sum(L .^ 2) / sum(hbars .^ 2))
-        sqrt(sum(L .^ 2) / sum(hbars .^ 2))
         F = maximum(L0-L)
         @info "Force is " F
         #Fvec=F./L*[1,1].*barvec
