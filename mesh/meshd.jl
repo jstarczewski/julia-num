@@ -24,26 +24,29 @@ end
 
 function scaled_point(unscaled_point::Point2D, scaler::Scaler)
     return Point(
-        round(((getx(unscaled_point) * scaler.scale) + scaler.transx), digits = 4),
-        round(((gety(unscaled_point) * scaler.scale) + scaler.transy), digits = 4),
+        ((getx(unscaled_point) * scaler.scale) + scaler.transx),
+        ((gety(unscaled_point) * scaler.scale) + scaler.transy),
     )
 end
 
 function unscaled_point(scaled_point::Point2D, scaler::Scaler)
     return Point(
-        round((getx(scaled_point) - scaler.transx) / scaler.scale, digits = 4),
-        round((gety(scaled_point) - scaler.transy) / scaler.scale, digits = 4),
+        (getx(scaled_point) - scaler.transx) / scaler.scale,
+        (gety(scaled_point) - scaler.transy) / scaler.scale,
     )
 end
 
 function dc(p)
-    #return -0.3 + abs(0.7 - sqrt(sum(p .^ 2)))
+    return -0.3 + abs(0.7 - sqrt(sum(p .^ 2)))
+end
+
+function dca(p)
     return sqrt(sum(p .^ 2)) - 1
 end
 
 function fh(x, y)::Real
     #  @info "Value is" s = 0.2
-    return 0.2
+    return 1
 end
 
 function meshgrid(vx::AbstractVector{T}, vy::AbstractVector{T}) where {T}
@@ -83,7 +86,6 @@ function generate(fd, fh, bbox, h0)
     deltat = 0.2
     v1, v2 = extractbox(bbox, h0, h1)
     x, y = meshgrid(v1, v2)
-    final_p = Array{Array{Float64,1},1}()
     shiftevenrows!(x, h0)
     po = [x[:] y[:]]
     po = [vcat(row) for row in eachrow(po) if fd(row) < -geps]
@@ -93,10 +95,8 @@ function generate(fd, fh, bbox, h0)
     scaler = Scaler(bbox)
     po = [vcat(scale_p(row, scaler)) for row in po if (rand(Float64, size(po)))[1] < r0_max]
     pa = transpose(reshape(vcat(po...), 2, length(po)))
-    del, vor, summ = deldir(pa[:, 1], pa[:, 2])
-    #while true
-        println(typeof(pa[:,1]))
-        println(typeof(pa[:,2]))
+    while true
+        del, vor, summ = deldir(pa[:, 1], pa[:, 2])
         Dx, Dy = edges(del)
         interior_points = Array{Point2D,1}()
         generators = Dict{Int64,Array{Int,1}}()
@@ -141,14 +141,13 @@ function generate(fd, fh, bbox, h0)
         interior_points =
             transpose(reshape(vcat(interior_points...), 2, length(interior_points)))
         del, vor, summ = deldir(interior_points[:, 1], interior_points[:, 2])
-        dedges = [Line(unscaled_point(Point(r[1], r[2]), scaler), unscaled_point(Point(r[3], r[4]), scaler)) for r in eachrow(del)]
+        dedges = [Line(Point(r[1], r[2]),Point(r[3], r[4])) for r in eachrow(del)]
         bars = Array{Point2D,1}()
         barvec = Array{Array{Float64,1},1}()
         points_to_fvces = Dict{Point2D,Array{Float64,1}}()
         for edge in dedges
             b = unscaled_point(getb(edge), scaler)
             a = unscaled_point(geta(edge), scaler)
-            # Obliczamy jako wartość fh() w połowie kazdego bara
             push!(
                 bars,
                 Point(
@@ -171,11 +170,9 @@ function generate(fd, fh, bbox, h0)
         hbars = [fh(getx(p), gety(p)) for p in bars]
         L0 = hbars * Fscale * sqrt(sum(L .^ 2) / sum(hbars .^ 2))
         sqrt(sum(L .^ 2) / sum(hbars .^ 2))
-        F = maximum(L0 - L)
-        @info "Force is " F
+        F = maximum.(L0 - L)
         #Fvec=F./L*[1,1].*barvec
         Fvec = F ./ L .* barvec
-        @info "Final iteration started"
         for edge in dedges
             prev_a = points_to_fvces[geta(edge)]
             prev_b = points_to_fvces[getb(edge)]
@@ -183,20 +180,18 @@ function generate(fd, fh, bbox, h0)
             push!(points_to_fvces, getb(edge) => prev_b + (Fvec[iterator]))
             iterator = iterator + 1
         end
-        @info "Final iteration finished"
         new_p = Array{Point2D,1}()
         d_points = Array{Array{Float64,1},1}()
         for (point, force) in points_to_fvces
             p = unscaled_point(point, scaler)
-            np = [getx(p), gety(p)] + 0.2 * force
+            np = [getx(p), gety(p)] + deltat * force
             push!(new_p, Point2D(np[1], np[2]))
             d = fd(np)
             if d < -geps
                 push!(d_points, force)
             end
         end
-        @info "Mapping points"
-        new_p_raw = map(p -> [getx(p), gety(p)], new_p)
+        final_p = Array{Array{Float64,1},1}()
         for p in new_p
             x = getx(p)
             y = gety(p)
@@ -212,21 +207,18 @@ function generate(fd, fh, bbox, h0)
                 push!(final_p, [x, y])
             end
         end
-        final_p = map(p -> scaled_point(Point2D(p[1], p[2]), scaler), final_p)
-        println(final_p)
-        final_p = map(p -> [getx(p), gety(p)], final_p)
-        #pa = [vcat(scale_p([round(p[1],RoundNearestTiesAway, sigdigits=4), round(p[2], RoundNearestTiesAway, sigdigits=4)], scaler)) for p in final_p]
-        pa = transpose(reshape(vcat(final_p...), 2, length(final_p)))
-        println(pa)
-        d_points = map(row -> sum(deltat * row .^ 2), d_points)
-        @info "Checking break condition"
-        if maximum(sqrt.(d_points) / h0) < dptol
-            @info "Breaking out of loop"
-            #break
+        d = map(row -> sum(deltat * row .^ 2), d_points)
+        push!(d, 0)
+        aa  = maximum(sqrt.(d) / h0)
+        @info "Move" aa
+        final_p = map(p -> scale_p([p[1], p[2]], scaler), final_p)
+        final_p = transpose(reshape(vcat(final_p...), 2, length(final_p)))
+        pa = final_p
+        if aa < dptol
+           break
         end
-    #end
+    end
     del, vor, summ = deldir(pa[:,1], pa[:,2])
-
     Dx, Dy = edges(del)
     Gadfly.plot(x=Dx, y=Dy, Geom.path, Coord.cartesian(fixed=true))
 end

@@ -38,7 +38,7 @@ end
 
 function fh(x, y)::Real
     #  @info "Value is" s = 0.2
-    return 1
+    return 0.2
 end
 
 function meshgrid(vx::AbstractVector{T}, vy::AbstractVector{T}) where {T}
@@ -79,7 +79,6 @@ function generate(fd, fh, bbox, h0)
     deltat = 0.2
     v1, v2 = extractbox(bbox, h0, h1)
     x, y = meshgrid(v1, v2)
-    final_p = Array{Array{Float64,1},1}()
     shiftevenrows!(x, h0)
     pb = [
         Point(row[1], row[2])
@@ -89,18 +88,14 @@ function generate(fd, fh, bbox, h0)
     r0_max = maximum(r0 ./ maximum(r0))
     pold = Inf
     scaler = Scaler(bbox)
-    pps = pb
     pb = [
         scaled_point(point, scaler)
         for point in pb if (rand(Float64, size(pb)))[1] < r0_max
     ]
     while true
-        @info "Loop"
-        pb = unique!(pb)
-        tesselation = DelaunayTessellation(size(pb)[1])
+        tesselation = DelaunayTessellation()
         @info "Push to first tess"
         for p in pb
-            @info "P is" p
             push!(tesselation, p)
         end
         interior_points = Array{Point2D,1}()
@@ -114,8 +109,8 @@ function generate(fd, fh, bbox, h0)
                 push!(interior_points, getc(triangle))
             end
         end
-        interior_points = unique!(interior_points)
-        interior_tesselation = DelaunayTessellation(size(interior_points)[1])
+        interior_points = unique(interior_points)
+        interior_tesselation = DelaunayTessellation()
         @info "Push to second tess without triangles"
         push!(interior_tesselation, interior_points)
         bars = Array{Point2D,1}()
@@ -151,8 +146,11 @@ function generate(fd, fh, bbox, h0)
         iterator = 1
         hbars = [fh(getx(p), gety(p)) for p in bars]
         L0 = hbars * Fscale * sqrt(sum(L .^ 2) / sum(hbars .^ 2))
-        F = maximum(L0-L)
+        F = maximum.(L0-L)
+        println(typeof(F))
         @info "Force is " F
+        println("END")
+        println(size(pb))
         #Fvec=F./L*[1,1].*barvec
         Fvec = F ./ L .* barvec
         @info "Final iteration started"
@@ -170,13 +168,13 @@ function generate(fd, fh, bbox, h0)
             p = unscaled_point(point, scaler)
             np = [getx(p), gety(p)] + deltat * force
             push!(new_p, Point2D(np[1], np[2]))
-            d = fd(np)
+            d = fd([getx(p), gety(p)])
             if d < -geps
                 push!(d_points, force)
             end
         end
         @info "Mapping points"
-        new_p_raw = map(p -> [getx(p), gety(p)], new_p)
+        final_p = Array{Array{Float64,1},1}()
         for p in new_p
             x = getx(p)
             y = gety(p)
@@ -186,7 +184,7 @@ function generate(fd, fh, bbox, h0)
                 dgrady = (fd([x, y + deps])-d)
                 rdgradx = dgradx/deps
                 rdgrady = dgrady/deps
-              res = [x, y] - [d*rdgradx, d*rdgrady]
+                res = [x, y] - [d*rdgradx, d*rdgrady]
                 push!(final_p, res)
             else
                 push!(final_p, [x, y])
@@ -195,12 +193,14 @@ function generate(fd, fh, bbox, h0)
         pb = map(p -> scaled_point(Point2D(p[1], p[2]), scaler), final_p)
         d_points = map(row -> sum(deltat * row .^ 2), d_points)
         @info "Checking break condition"
-        if maximum(sqrt.(d_points) / h0) < dptol
+        ee = maximum(sqrt.(d_points)/h0)
+        println(ee)
+        if ee < dptol
             @info "Breaking out of loop"
             break
         end
    end
-   tex = DelaunayTessellation(size(pb)[1])
+   tex = DelaunayTessellation()
    @info "Push to output tess"
    @info "Pb size is" size(pb)
    pb = unique!(pb)
