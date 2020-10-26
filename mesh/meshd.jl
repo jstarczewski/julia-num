@@ -95,10 +95,12 @@ function generate(fd, fh, bbox, h0)
     scaler = Scaler(bbox)
     po = [vcat(scale_p(row, scaler)) for row in po if (rand(Float64, size(po)))[1] < r0_max]
     pa = transpose(reshape(vcat(po...), 2, length(po)))
+    ppss = []
+    ppyy = []
     while true
         del, vor, summ = deldir(pa[:, 1], pa[:, 2])
-        Dx, Dy = edges(del)
         interior_points = Array{Point2D,1}()
+        sedges = [[r[1] r[2] r[3] r[4]] for r in eachrow(del) ]
         generators = Dict{Int64,Array{Int,1}}()
         for (index, row) in enumerate(eachrow(summ))
             generators[index] = []
@@ -128,24 +130,72 @@ function generate(fd, fh, bbox, h0)
             ],
             triangles,
         )
+        i = 1
+        nedges = Array{Array{Float64, 2}, 1}()
+        yedges = Array{Array{Float64, 2}, 1}()
         for tp in tri_point
             center = unscaled_point(centroid(Primitive(tp[1], tp[2], tp[3])), scaler)
-            if fd([getx(center), gety(center)]) < -geps
+            i += 1
+            if fd([getx(center), gety(center)]) > -geps
+                a = tp[1]
+                b = tp[2]
+                c = tp[3]
+                ab = [getx(a) gety(a); getx(b) gety(b)]
+                ba = [getx(b) gety(b); getx(a) gety(a)]
+                bc = [getx(b) gety(b); getx(c) gety(c)]
+                cb = [getx(c) gety(c); getx(b) gety(b)]
+                ac = [getx(a) gety(a); getx(c) gety(c)]
+                ca = [getx(c) gety(c); getx(a) gety(a)]
+                push!(nedges, ab)
+                push!(nedges, ba)
+                push!(nedges, bc)
+                push!(nedges, cb)
+                push!(nedges, ac)
+                push!(nedges, ca)
+                        else
+                a = tp[1]
+                b = tp[2]
+                c = tp[3]
+                ab = [getx(a) gety(a); getx(b) gety(b)]
+                ba = [getx(b) gety(b); getx(a) gety(a)]
+                bc = [getx(b) gety(b); getx(c) gety(c)]
+                cb = [getx(c) gety(c); getx(b) gety(b)]
+                ac = [getx(a) gety(a); getx(c) gety(c)]
+                ca = [getx(c) gety(c); getx(a) gety(a)]
+                push!(yedges, ab)
+                push!(yedges, ba)
+                push!(yedges, bc)
+                push!(yedges, cb)
+                push!(yedges, ac)
+                push!(yedges, ca)
                 push!(interior_points, unscaled_point(tp[1], scaler))
                 push!(interior_points, unscaled_point(tp[2], scaler))
                 push!(interior_points, unscaled_point(tp[3], scaler))
             end
         end
-        interior_points =
-            map(p -> scale_p([getx(p), gety(p)], scaler), unique!(interior_points))
-        interior_points =
-            transpose(reshape(vcat(interior_points...), 2, length(interior_points)))
-        del, vor, summ = deldir(interior_points[:, 1], interior_points[:, 2])
-        dedges = [Line(Point(r[1], r[2]),Point(r[3], r[4])) for r in eachrow(del)]
+        nedges = filter(a -> !(a in yedges), nedges)
+        tredges = [[r[1] r[2]; r[3] r[4]] for r in eachrow(del)]
+        tredges = filter(a -> !(a in nedges), tredges)
+        ppss = Array{Float64, 1}()
+        ppyy = Array{Float64, 1}()
+        sedges = Array{Line2D{Point2D}, 1}()
+        for tredge in tredges
+            push!(ppss, tredge[1])
+            push!(ppss, tredge[2])
+            push!(ppss, NaN)
+            push!(ppyy, tredge[3])
+            push!(ppyy, tredge[4])
+            push!(ppyy, NaN)
+            push!(sedges, Line(Point(tredge[1], tredge[3]), Point(tredge[2], tredge[4])))
+        end
+        #interior_points =
+    #        map(p -> scale_p([getx(p), gety(p)], scaler), unique!(interior_points))
+        #interior_points =
+    #        transpose(reshape(vcat(interior_points...), 2, length(interior_points)))
         bars = Array{Point2D,1}()
         barvec = Array{Array{Float64,1},1}()
         points_to_fvces = Dict{Point2D,Array{Float64,1}}()
-        for edge in dedges
+        for edge in sedges
             b = unscaled_point(getb(edge), scaler)
             a = unscaled_point(geta(edge), scaler)
             push!(
@@ -162,8 +212,12 @@ function generate(fd, fh, bbox, h0)
                     gety(b) - gety(a)
                 ],
             )
-            push!(points_to_fvces, geta(edge) => [0, 0])
-            push!(points_to_fvces, getb(edge) => [0, 0])
+            if !haskey(points_to_fvces, geta(edge))
+                push!(points_to_fvces, geta(edge) => [0, 0])
+            end
+            if !haskey(points_to_fvces, getb(edge))
+                push!(points_to_fvces, getb(edge) => [0, 0])
+            end
         end
         L = [sqrt(sum(v_sum .^ 2)) for v_sum in barvec]
         iterator = 1
@@ -173,7 +227,7 @@ function generate(fd, fh, bbox, h0)
         F = maximum.(L0 - L)
         #Fvec=F./L*[1,1].*barvec
         Fvec = F ./ L .* barvec
-        for edge in dedges
+        for edge in sedges
             prev_a = points_to_fvces[geta(edge)]
             prev_b = points_to_fvces[getb(edge)]
             push!(points_to_fvces, geta(edge) => prev_a + (-Fvec[iterator]))
@@ -210,15 +264,22 @@ function generate(fd, fh, bbox, h0)
         d = map(row -> sum(deltat * row .^ 2), d_points)
         push!(d, 0)
         aa  = maximum(sqrt.(d) / h0)
-        @info "Move" aa
+        final_p = unique(final_p)
         final_p = map(p -> scale_p([p[1], p[2]], scaler), final_p)
         final_p = transpose(reshape(vcat(final_p...), 2, length(final_p)))
-        pa = final_p
+        @info aa
         if aa < dptol
            break
+       else
+           pa = final_p
         end
     end
-    del, vor, summ = deldir(pa[:,1], pa[:,2])
-    Dx, Dy = edges(del)
-    Gadfly.plot(x=Dx, y=Dy, Geom.path, Coord.cartesian(fixed=true))
+    println("plotting")
+    Gadfly.plot(x=ppss, y=ppyy, Geom.path, Coord.cartesian(fixed=true))
+end
+
+
+function inrow(r, dedges)
+    a = Line(Point(r[3], r[4]), Point(r[1], r[2]))
+    return !(a in dedges)
 end
