@@ -1,48 +1,7 @@
 using Deldir
 using Gadfly
 using GeometricalPredicates
-
-struct Scaler
-    scale::Any
-    transx::Any
-    transy::Any
-
-    function Scaler(bbox::Array{Int,2})
-        _scale = (abs(1 / (bbox[2] - bbox[1])))
-        new(_scale, (0 - bbox[1] * _scale), (0 - bbox[1, 2] * _scale))
-    end
-end
-
-
-function scale_p(p, scaler::Scaler)
-    return [(p[1] * scaler.scale) + scaler.transx, (p[2] * scaler.scale) + scaler.transy]
-end
-
-function unscale_p(p, scaler::Scaler)
-    return [(p[1] - scaler.transx) / scaler.scale, (p[2] - scaler.transy) / scaler.scale]
-end
-
-function scaled_point(unscaled_point::Point2D, scaler::Scaler)
-    return Point(
-        ((getx(unscaled_point) * scaler.scale) + scaler.transx),
-        ((gety(unscaled_point) * scaler.scale) + scaler.transy),
-    )
-end
-
-function unscaled_point(scaled_point::Point2D, scaler::Scaler)
-    return Point(
-        (getx(scaled_point) - scaler.transx) / scaler.scale,
-        (gety(scaled_point) - scaler.transy) / scaler.scale,
-    )
-end
-
-function dc(p)
-    return -0.3 + abs(0.7 - sqrt(sum(p .^ 2)))
-end
-
-function dca(p)
-    return sqrt(sum(p .^ 2)) - 1
-end
+using Main.PointScaler
 
 function fh(x, y)::Real
     return 1
@@ -54,8 +13,6 @@ function meshgrid(vx::AbstractVector{T}, vy::AbstractVector{T}) where {T}
     gy = reshape(repeat(vy, inner = 1, outer = n), m, n)
     return gx, gy
 end
-
-#bbox = [0 0; 1 1]
 
 function extractbox(bbox, h0::Real, h1::Real)
     v1 = bbox[1, 1]:h0:bbox[2, 1]
@@ -260,18 +217,18 @@ function generate(fd, fh, bbox, h0)
     v1, v2 = extractbox(bbox, h0, h1)
     x, y = meshgrid(v1, v2)
     shiftevenrows!(x, h0)
-    po = [x[:] y[:]]
-    po = [vcat(row) for row in eachrow(po) if fd(row) < -geps]
-    r0 = [1 ./ fh(row...) .^ 2 for row in po]
+    p = [x[:] y[:]]
+    p = [vcat(row) for row in eachrow(p) if fd(row) < -geps]
+    r0 = [1 ./ fh(row...) .^ 2 for row in p]
     r0_max = maximum(r0 ./ maximum(r0))
     pold = Inf
     scaler = Scaler(bbox)
-    po = [vcat(scale_p(row, scaler)) for row in po if (rand(Float64, size(po)))[1] < r0_max]
-    pa = transpose(reshape(vcat(po...), 2, length(po)))
+    p = [vcat(scale_p(row, scaler)) for row in p if (rand(Float64, size(p)))[1] < r0_max]
+    p = transpose(reshape(vcat(p...), 2, length(p)))
     ppss = []
     ppyy = []
     while true
-        del, vor, summ = deldir(pa[:, 1], pa[:, 2])
+        del, vor, summ = deldir(p[:, 1], p[:, 2])
         triangles = buildTriangles(del, summ)
         sedges, ppss, ppyy = buildEdgesToPlot(triangles, del, scaler, fd, geps)
         points_to_fvces = buildForces(sedges, scaler, Fscale)
@@ -283,7 +240,7 @@ function generate(fd, fh, bbox, h0)
         if moveIndex < dptol
             break
         else
-            pa = final_p
+            p = final_p
         end
     end
     Gadfly.plot(x = ppss, y = ppyy, Geom.path, Coord.cartesian(fixed = true))
