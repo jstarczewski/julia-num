@@ -14,6 +14,10 @@ function dca(p)
     return sqrt(sum(p .^ 2)) - 1
 end
 
+function dcb(p, x1, x2, y1, y2)
+    return -min(min(min(-y1+p[2],y2-p[2], -x1+p[1],x2-p[1])))
+end
+
 struct Scaler
     scale::Any
     transx::Any
@@ -123,7 +127,7 @@ function validedges(triangles, del, scaler, fd, geps)
         a = triangle[1]
         b = triangle[2]
         c = triangle[3]
-        edges = vectorized_edges(triangle)
+        edges = vectorizededges(triangle)
         if fd([getx(center), gety(center)]) > -geps
             push!(inside_edges, edges...)
         else
@@ -150,7 +154,7 @@ function validedges(triangles, del, scaler, fd, geps)
     return line_edges, x, y
 end
 
-function pointstoforces(edges, scaler, Fscale)
+function pointstoforces(edges, scaler, Fscale, pfix)
     bars = Array{Point2D,1}()
     barvec = Array{Array{Float64,1},1}()
     points_to_fvces = Dict{Point2D,Array{Float64,1}}()
@@ -177,11 +181,17 @@ function pointstoforces(edges, scaler, Fscale)
     Fvec = maximum.(L0 - L) ./ L .* barvec
     iterator = 1
     for edge in edges
-        prev_a = points_to_fvces[geta(edge)]
-        prev_b = points_to_fvces[getb(edge)]
-        push!(points_to_fvces, geta(edge) => prev_a + (-Fvec[iterator]))
-        push!(points_to_fvces, getb(edge) => prev_b + (Fvec[iterator]))
+        a = geta(edge)
+        b = getb(edge)
+        prev_a = points_to_fvces[a]
+        prev_b = points_to_fvces[b]
+        push!(points_to_fvces, a => prev_a + (-Fvec[iterator]))
+        push!(points_to_fvces, b => prev_b + (Fvec[iterator]))
         iterator = iterator + 1
+    end
+    for p in eachrow(pfix)
+        p = Point(p[1], p[2])
+        push!(points_to_fvces, p => [0, 0])
     end
     return points_to_fvces
 end
@@ -224,7 +234,7 @@ function move_index(d_points, deltat, h0)
     return maximum(sqrt.(d) / h0)
 end
 
-function generate(fd, fh, bbox, h0, ttol = 0.1, geps = 0.001 * h0, Fscale = 1.2, dptol = 0.001, deltat = 0.2, deps = sqrt(eps(Float64)) * h0)
+function generate(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fscale = 1.2, dptol = 0.001, deltat = 0.2, deps = sqrt(eps(Float64)) * h0)
     h1 = calculateh1(h0)
     pold = Inf
     scaler = Scaler(bbox)
@@ -237,11 +247,14 @@ function generate(fd, fh, bbox, h0, ttol = 0.1, geps = 0.001 * h0, Fscale = 1.2,
     r0_max = maximum(r0 ./ maximum(r0))
     p = [vcat(scale_p(row, scaler)) for row in p if (rand(Float64, size(p)))[1] < r0_max]
     p = transpose(reshape(vcat(p...), 2, length(p)))
+    pfix = [vcat(scale_p(row, scaler)) for row in eachrow(pfix)]
+    pfix = transpose(reshape(vcat(pfix...), 2, length(pfix)))
+    p = [p; pfix]
     while true
         del, vor, summ = deldir(p[:, 1], p[:, 2])
         trigs = triangles(del, summ)
         line_edges, x, y = validedges(trigs, del, scaler, fd, geps)
-        points_to_fvces = pointstoforces(line_edges, scaler, Fscale)
+        points_to_fvces = pointstoforces(line_edges, scaler, Fscale, pfix)
         final_p, move_index = finalpositions(points_to_fvces, scaler, deltat, fd, geps, deps, h0)
         if move_index < dptol
             break

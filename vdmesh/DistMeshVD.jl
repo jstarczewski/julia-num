@@ -1,5 +1,4 @@
 using Deldir
-using Gadfly
 using Main.VoronoiDelaunay
 using Main.GeometricalPredicates
 
@@ -297,5 +296,5 @@ function generate(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fs
             p = map(p -> movein(p), p)
         end
     end
-    Gadfly.plot(x = x, y = y, Geom.path, Coord.cartesian(fixed = true))
+    return x, y
 end

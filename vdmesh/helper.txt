@@ -1,0 +1,11 @@
+include("vdmesh/GeometricalPredicates.jl/src/GeometricalPredicates.jl")
+include("vdmesh/VoronoiDelaunay.jl/src/VoronoiDelaunay.jl")
+include("vdmesh/DistMeshVD.jl")
+
+include("vdmesh/GeometricalPredicates.jl/src/GeometricalPredicates.jl"); include("vdmesh/VoronoiDelaunay.jl/src/VoronoiDelaunay.jl"); include("vdmesh/DistMeshVD.jl")
+
+include("vdmesh/DistMeshVD.jl")
+
+fd(p) = max(dcb(p, -1,1,-1,1), -dcrc(p, 0,0,0.4))
+
+generate(fd, fh, [-1 -1; 1 1], 0.1, [-1 -1; -1 1; 1 -1; 1 1])
