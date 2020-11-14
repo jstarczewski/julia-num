@@ -28,3 +28,6 @@ end
 function eplot(x,y)
     Gadfly.plot(x = x, y = y, Geom.path, Coord.cartesian(fixed = true))
 end
+
+x, y = distmesh(dcrcc, fh, [-100 -100; 100 100], 7.0, [-100 -100; -100 100; 100 -100; 100 100])
+eplot(x,y)
