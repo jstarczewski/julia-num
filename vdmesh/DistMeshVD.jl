@@ -1,26 +1,5 @@
-using Deldir
 using Main.VoronoiDelaunay
 using Main.GeometricalPredicates
-
-function fh(x, y)::Real
-    return 1
-end
-
-function dc(p)
-    return -0.3 + abs(0.7 - sqrt(sum(p .^ 2)))
-end
-
-function dca(p)
-    return sqrt(sum(p .^ 2)) - 1
-end
-
-function dcb(p, x1, x2, y1, y2)
-    return -min(min(min(-y1+p[2],y2-p[2], -x1+p[1],x2-p[1])))
-end
-
-function dcrc(p, xc, yc, r)
-    return sqrt((p[1] - xc).^2 + (p[2]-yc).^2) - r
-end
 
 struct Scaler
     scale::Any
@@ -31,14 +10,6 @@ struct Scaler
         _scale = (abs(1 / (bbox[2] - bbox[1])))
         new(_scale, (1 - bbox[1] * _scale), (1 - bbox[1, 2] * _scale))
     end
-end
-
-function scale_p(p, scaler::Scaler)
-    return [(p[1] * scaler.scale) + scaler.transx, (p[2] * scaler.scale) + scaler.transy]
-end
-
-function unscale_p(p, scaler::Scaler)
-    return [(p[1] - scaler.transx) / scaler.scale, (p[2] - scaler.transy) / scaler.scale]
 end
 
 function scaled_point(unscaled_point::Point2D, scaler::Scaler)
@@ -53,6 +24,22 @@ function unscaled_point(scaled_point::Point2D, scaler::Scaler)
         (getx(scaled_point) - scaler.transx) / scaler.scale,
         (gety(scaled_point) - scaler.transy) / scaler.scale,
     )
+end
+
+function scale_p(p, scaler::Scaler)
+    return [(p[1] * scaler.scale) + scaler.transx, (p[2] * scaler.scale) + scaler.transy]
+end
+
+function unscale_p(p, scaler::Scaler)
+    return [(p[1] - scaler.transx) / scaler.scale, (p[2] - scaler.transy) / scaler.scale]
+end
+
+function unscale_y(p, scaler)
+    return (p - scaler.transx) / scaler.scale
+end
+
+function unscale_x(p, scaler)
+    return (p - scaler.transy) / scaler.scale
 end
 
 function meshgrid(vx::AbstractVector{T}, vy::AbstractVector{T}) where {T}
@@ -76,49 +63,17 @@ function shiftevenrows!(x, h0::Real)
     x[2:2:end, :] = x[2:2:end, :] .+ h0 / 2
 end
 
-function trigs(del, summ)
-    generators = Dict{Int64,Array{Int,1}}()
-    for (index, row) in enumerate(eachrow(summ))
-        generators[index] = []
-    end
-    for row in eachrow(del)
-        generators[row[5]] = append!(generators[row[5]], row[6])
-        generators[row[6]] = append!(generators[row[6]], row[5])
-    end
-    triangles = Array{Array{Int,1},1}()
-    for k in keys(generators)
-        for e in generators[k]
-            i = findall(in(generators[e]), generators[k])
-            common = generators[k][i]
-            for c in common
-                tri = sort([c, k, e])
-                if !(tri in triangles)
-                    push!(triangles, tri)
-                end
-            end
-        end
-    end
-    return map(
-        t -> [
-            Point(summ[t[1], 1], summ[t[1], 2]),
-            Point(summ[t[2], 1], summ[t[2], 2]),
-            Point(summ[t[3], 1], summ[t[3], 2]),
-        ],
-        triangles,
-    )
-end
-
 function vectorizededges(triangle)
-        a = geta(triangle)
-        b = getb(triangle)
-        c = getc(triangle)
-        ab = Line(Point(getx(a), gety(a)), Point(getx(b), gety(b)))
-        ba = Line(Point(getx(b), gety(b)), Point(getx(a), gety(a)))
-        bc = Line(Point(getx(b), gety(b)), Point(getx(c), gety(c)))
-        cb = Line(Point(getx(c), gety(c)), Point(getx(b), gety(b)))
-        ac = Line(Point(getx(a), gety(a)), Point(getx(c), gety(c)))
-        ca = Line(Point(getx(c), gety(c)), Point(getx(a), gety(a)))
-        return ab, ba, bc, cb, ac, ca
+    a = geta(triangle)
+    b = getb(triangle)
+    c = getc(triangle)
+    ab = Line(Point(getx(a), gety(a)), Point(getx(b), gety(b)))
+    ba = Line(Point(getx(b), gety(b)), Point(getx(a), gety(a)))
+    bc = Line(Point(getx(b), gety(b)), Point(getx(c), gety(c)))
+    cb = Line(Point(getx(c), gety(c)), Point(getx(b), gety(b)))
+    ac = Line(Point(getx(a), gety(a)), Point(getx(c), gety(c)))
+    ca = Line(Point(getx(c), gety(c)), Point(getx(a), gety(a)))
+    return ab, ba, bc, cb, ac, ca
 end
 
 function validedges(tess, scaler, fd, geps)
@@ -126,11 +81,11 @@ function validedges(tess, scaler, fd, geps)
     inside_edges = Array{Line2D,1}()
     outside_edges = Array{Line2D,1}()
     for triangle in tess
-        center = unscaled_point(centroid(Primitive(geta(triangle), getb(triangle), getc(triangle))), scaler)
-        i += 1
         a = geta(triangle)
         b = getb(triangle)
         c = getc(triangle)
+        center = unscaled_point(centroid(Primitive(a, b, c)), scaler)
+        i += 1
         edges = vectorizededges(triangle)
         if fd([getx(center), gety(center)]) > -geps
             push!(inside_edges, edges...)
@@ -144,9 +99,12 @@ function validedges(tess, scaler, fd, geps)
     end
     inside_edges = filter(edge -> !(edge in outside_edges), inside_edges)
     edges = filter(edge -> !(edge in inside_edges), edges)
+    return [edge for edge in edges]
+end
+
+function plotedges(edges)
     x = Array{Float64,1}()
     y = Array{Float64,1}()
-    line_edges = Array{Line2D,1}()
     for edge in edges
         push!(x, getx(geta(edge)))
         push!(x, getx(getb(edge)))
@@ -154,9 +112,8 @@ function validedges(tess, scaler, fd, geps)
         push!(y, gety(geta(edge)))
         push!(y, gety(getb(edge)))
         push!(y, NaN)
-        push!(line_edges, edge)
     end
-    return line_edges, x, y
+    return x, y
 end
 
 function pointstoforces(edges, scaler, Fscale, pfix)
@@ -213,7 +170,7 @@ function finalpositions(points_to_fvces, scaler, deltat, fd, geps, deps, h0)
             push!(d_points, force)
         end
     end
-        final_p = Array{Array{Float64,1},1}()
+    final_p = Array{Array{Float64,1},1}()
     for p in new_p
         x = getx(p)
         y = gety(p)
@@ -227,13 +184,11 @@ function finalpositions(points_to_fvces, scaler, deltat, fd, geps, deps, h0)
             push!(final_p, [x, y])
         end
     end
-    final_p = unique(final_p)
-    final_p = map(p -> scale_p([p[1], p[2]], scaler), final_p)
-    final_p = transpose(reshape(vcat(final_p...), 2, length(final_p)))
-    return final_p, move_index(d_points, deltat, h0)
+    final_p = map(p -> scaled_point(Point(p[1], p[2]), scaler), unique(final_p))
+    return final_p, moveindex(d_points, deltat, h0)
 end
 
-function move_index(d_points, deltat, h0)
+function moveindex(d_points, deltat, h0)
     d = map(row -> sum(deltat * row .^ 2), d_points)
     push!(d, 0)
     return maximum(sqrt.(d) / h0)
@@ -243,21 +198,33 @@ function movein(p)
     newx = getx(p)
     newy = gety(p)
     if getx(p) <= 1
-        newx = round(newx, digits=7) + 2*eps(Float64)
+        newx = round(newx, digits = 8) + 2 *eps(Float64)
     end
     if gety(p) <= 1
-        newy = round(newy, digits=7) + 2*eps(Float64)
+        newy = round(newy, digits = 8) + 2 *eps(Float64)
     end
     if getx(p) >= 2
-        newx = round(newx, digits=7) - 3*eps(Float64)
+        newx = round(newx, digits = 8) - 3 * eps(Float64)
     end
     if gety(p) >= 2
-        newy = round(newy, digits=7)- 3*eps(Float64)
+        newy = round(newy, digits = 8) - 3 * eps(Float64)
     end
     return Point(newx, newy)
 end
 
-function generate(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fscale = 1.2, dptol = 0.001, deltat = 0.2, deps = sqrt(eps(Float64)) * h0)
+function distmesh(
+    fd,
+    fh,
+    bbox,
+    h0,
+    pfix = [],
+    ttol = 0.1,
+    geps = 0.001 * h0,
+    Fscale = 1.2,
+    dptol = 0.001,
+    deltat = 0.2,
+    deps = sqrt(eps(Float64)) * h0,
+)
     h1 = calculateh1(h0)
     pold = Inf
     scaler = Scaler(bbox)
@@ -265,36 +232,31 @@ function generate(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fs
     x, y = meshgrid(v1, v2)
     shiftevenrows!(x, h0)
     p = [x[:] y[:]]
-    pfix = [vcat(scale_p(row, scaler)) for row in eachrow(pfix)]
-    pfix = transpose(reshape(vcat(pfix...), 2, length(pfix)))
-    pfix = [Point(p[1], p[2]) for p in eachrow(pfix)]
-    pfix = map(p -> movein(p), pfix)
-    p = [
-        Point(row[1], row[2])
-        for row in eachrow([x[:] y[:]]) if fd(row) < -geps
-    ]
+    p = [Point(row[1], row[2]) for row in eachrow([x[:] y[:]]) if fd(row) < geps]
     r0 = [1 ./ fh(getx(point), gety(point)) .^ 2 for point in p]
     r0_max = maximum(r0 ./ maximum(r0))
     scaler = Scaler(bbox)
-    p = [
-        scaled_point(point, scaler)
-        for point in p if (rand(Float64, size(p)))[1] < r0_max
-    ]
-    p = map(p -> movein(p), p)
+    pfix = [scaled_point(Point(row[1], row[2]), scaler) for row in eachrow(pfix)]
+    pfix = map(p -> movein(p), pfix)
+    p = [scaled_point(point, scaler) for point in p if (rand(Float64, size(p)))[1] < r0_max]
     p = [p; pfix]
+    p = map(p -> movein(p), p)
     p = unique(p)
     while true
         tess = DelaunayTessellation(convex = false)
         push!(tess, p)
-        edges, x, y = validedges(tess, scaler, fd, geps)
+        edges = validedges(tess, scaler, fd, geps)
         points_to_fvces = pointstoforces(edges, scaler, Fscale, pfix)
-        final_p, move_index = finalpositions(points_to_fvces, scaler, deltat, fd, geps, deps, h0)
+        final_p, move_index =
+            finalpositions(points_to_fvces, scaler, deltat, fd, geps, deps, h0)
         if move_index < dptol
+            x, y = plotedges(edges)
             break
         else
-            p = [Point(p[1], p[2]) for p in eachrow(final_p)]
-            p = map(p -> movein(p), p)
+            p = map(p -> movein(p), final_p)
         end
     end
+    x = map(x -> unscale_x(x, scaler), x)
+    y = map(y -> unscale_y(y, scaler), y)
     return x, y
 end

@@ -1,6 +1,6 @@
 using Deldir
 using Gadfly
-using GeometricalPredicates
+using Main.GeometricalPredicates
 
 function fh(x, y)::Real
     return 1
@@ -191,6 +191,7 @@ function pointstoforces(edges, scaler, Fscale, pfix)
     end
     for p in eachrow(pfix)
         p = Point(p[1], p[2])
+        delete!(points_to_fvces, p)
         push!(points_to_fvces, p => [0, 0])
     end
     return points_to_fvces
@@ -234,7 +235,7 @@ function move_index(d_points, deltat, h0)
     return maximum(sqrt.(d) / h0)
 end
 
-function generate(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fscale = 1.2, dptol = 0.001, deltat = 0.2, deps = sqrt(eps(Float64)) * h0)
+function generated(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fscale = 1.2, dptol = 0.001, deltat = 0.2, deps = sqrt(eps(Float64)) * h0)
     h1 = calculateh1(h0)
     pold = Inf
     scaler = Scaler(bbox)
@@ -249,7 +250,6 @@ function generate(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fs
     p = transpose(reshape(vcat(p...), 2, length(p)))
     pfix = [vcat(scale_p(row, scaler)) for row in eachrow(pfix)]
     pfix = transpose(reshape(vcat(pfix...), 2, length(pfix)))
-    p = [p; pfix]
     while true
         del, vor, summ = deldir(p[:, 1], p[:, 2])
         trigs = triangles(del, summ)
@@ -262,5 +262,5 @@ function generate(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fs
             p = final_p
         end
     end
-    Gadfly.plot(x = x, y = y, Geom.path, Coord.cartesian(fixed = true))
+    return x, y
 end
