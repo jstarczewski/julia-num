@@ -58,49 +58,6 @@ function shiftevenrows!(x, h0::Real)
     x[2:2:end, :] = x[2:2:end, :] .+ h0 / 2
 end
 
-function vectorizededges(triangle)
-    a = triangle[1]
-    b = triangle[2]
-    c = triangle[3]
-    ab = [getx(a) gety(a); getx(b) gety(b)]
-    ba = [getx(b) gety(b); getx(a) gety(a)]
-    bc = [getx(b) gety(b); getx(c) gety(c)]
-    cb = [getx(c) gety(c); getx(b) gety(b)]
-    ac = [getx(a) gety(a); getx(c) gety(c)]
-    ca = [getx(c) gety(c); getx(a) gety(a)]
-    return ab, ba, bc, cb, ac, ca
-end
-
-function validedges(triangles, del, scaler, fd, geps)
-    i = 1
-    inside_edges = Array{Array{Float64,2},1}()
-    outside_edges = Array{Array{Float64,2},1}()
-    for triangle in triangles
-        center = unscaledpoint2d(
-            centroid(Primitive(triangle[1], triangle[2], triangle[3])),
-            scaler,
-        )
-        i += 1
-        a = triangle[1]
-        b = triangle[2]
-        c = triangle[3]
-        edges = vectorizededges(triangle)
-        if fd([getx(center), gety(center)]) > -geps
-            push!(inside_edges, edges...)
-        else
-            push!(outside_edges, edges...)
-        end
-    end
-    nedges = inside_edges
-    yedges = outside_edges
-    inside_edges = filter(edge -> !(edge in outside_edges), inside_edges)
-    edges = [[r[1] r[2]; r[3] r[4]] for r in eachrow(del)]
-    edges = filter(edge -> !(edge in inside_edges), edges)
-    x = Array{Float64,1}()
-    y = Array{Float64,1}()
-    return [Line(Point(edge[1], edge[3]), Point(edge[2], edge[4])) for edge in edges]
-end
-
 function pointstoforces(edges, scaler, Fscale, pfix, fh)
     bars = Array{Point2D,1}()
     barvec = Array{Array{Float64,1},1}()
