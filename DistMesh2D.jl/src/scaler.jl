@@ -1,11 +1,10 @@
-using GeometricalPredicates
 
 struct Scaler
-    scale::Any
-    transx::Any
-    transy::Any
+    scale::Float64
+    transx::Float64
+    transy::Float64
 
-    function Scaler(bbox::Array{Int,2})
+    function Scaler(bbox::Array{Float64, 2})
         _scale = (abs(1 / (bbox[2] - bbox[1])))
         new(_scale, (0 - bbox[1] * _scale), (0 - bbox[1, 2] * _scale))
     end
