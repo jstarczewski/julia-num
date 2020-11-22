@@ -1,15 +1,8 @@
 function triangles(del::DataFrame, summ::DataFrame)
     generators = emptygenerators(summ)
     generatorstogenerated!(generators, del)
-    triangles = buildtriangles(generators)
-    return map(
-        t -> [
-            Point(summ[t[1], 1], summ[t[1], 2]),
-            Point(summ[t[2], 1], summ[t[2], 2]),
-            Point(summ[t[3], 1], summ[t[3], 2]),
-        ],
-        triangles,
-    )
+    indextriangles = buildindextriangles(generators)
+    return buildvaluetriangles(indextriangles, summ)
 end
 
 function emptygenerators(summ::DataFrame)::Dict{Int64,Array{Int,1}}
@@ -27,7 +20,7 @@ function generatorstogenerated!(generators::Dict{Int64,Array{Int,1}}, del::DataF
     end
 end
 
-function buildtriangles(generators::Dict{Int64,Array{Int,1}})::Array{Array{Int,1},1}
+function buildindextriangles(generators::Dict{Int64,Array{Int,1}})::Array{Array{Int,1},1}
     triangles = Array{Array{Int,1},1}()
     for k in keys(generators)
         for e in generators[k]
@@ -42,4 +35,17 @@ function buildtriangles(generators::Dict{Int64,Array{Int,1}})::Array{Array{Int,1
         end
     end
     return triangles
+end
+
+function buildvaluetriangles(
+    indextriangles::Array{Array{Int,1},1},
+    summ::DataFrame,
+)::Array{Array{Point2D,1},1}
+   return [
+        [
+            Point(summ[t[1], 1], summ[t[1], 2]),
+            Point(summ[t[2], 1], summ[t[2], 2]),
+            Point(summ[t[3], 1], summ[t[3], 2]),
+        ] for t in indextriangles
+    ]
 end
