@@ -1,5 +1,4 @@
-using Deldir
-using Gadfly
+using Main.Deldir
 using Main.GeometricalPredicates
 
 function fh(x, y)::Real
@@ -49,6 +48,14 @@ function unscaled_point(scaled_point::Point2D, scaler::Scaler)
         (getx(scaled_point) - scaler.transx) / scaler.scale,
         (gety(scaled_point) - scaler.transy) / scaler.scale,
     )
+end
+
+function unscale_y(p, scaler)
+    return (p - scaler.transx) / scaler.scale
+end
+
+function unscale_x(p, scaler)
+    return (p - scaler.transy) / scaler.scale
 end
 
 function meshgrid(vx::AbstractVector{T}, vy::AbstractVector{T}) where {T}
@@ -235,7 +242,7 @@ function move_index(d_points, deltat, h0)
     return maximum(sqrt.(d) / h0)
 end
 
-function generated(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fscale = 1.2, dptol = 0.001, deltat = 0.2, deps = sqrt(eps(Float64)) * h0)
+function generate(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, Fscale = 1.2, dptol = 0.001, deltat = 0.2, deps = sqrt(eps(Float64)) * h0)
     h1 = calculateh1(h0)
     pold = Inf
     scaler = Scaler(bbox)
@@ -262,5 +269,7 @@ function generated(fd, fh, bbox, h0, pfix = [], ttol = 0.1, geps = 0.001 * h0, F
             p = final_p
         end
     end
+    x = map(x -> unscale_x(x, scaler), x)
+    y = map(y -> unscale_y(y, scaler), y)
     return x, y
 end
