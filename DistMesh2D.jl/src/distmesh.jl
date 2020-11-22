@@ -28,11 +28,12 @@ function distmesh2d(
     while true
         del, vor, summ = deldir(p[:, 1], p[:, 2])
         trigs = triangles(del, summ)
-        line_edges, x, y = validedges(trigs, del, scaler, fd, geps)
+        line_edges = validedges(trigs, del, scaler, fd, geps)
         pointstofvces = pointstoforces(line_edges, scaler, Fscale, pfix, fh)
         finalp, moveindex =
             finalpositions(pointstofvces, scaler, deltat, fd, geps, deps, h0)
         if moveindex < dptol
+            x, y = plotedges(line_edges)
             break
         else
             p = finalp
@@ -97,17 +98,7 @@ function validedges(triangles, del, scaler, fd, geps)
     edges = filter(edge -> !(edge in inside_edges), edges)
     x = Array{Float64,1}()
     y = Array{Float64,1}()
-    line_edges = Array{Line2D{Point2D},1}()
-    for edge in edges
-        push!(x, edge[1])
-        push!(x, edge[2])
-        push!(x, NaN)
-        push!(y, edge[3])
-        push!(y, edge[4])
-        push!(y, NaN)
-        push!(line_edges, Line(Point(edge[1], edge[3]), Point(edge[2], edge[4])))
-    end
-    return line_edges, x, y
+    return [Line(Point(edge[1], edge[3]), Point(edge[2], edge[4])) for edge in edges]
 end
 
 function pointstoforces(edges, scaler, Fscale, pfix, fh)

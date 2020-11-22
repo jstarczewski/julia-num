@@ -4,3 +4,17 @@ function meshgrid(vx::AbstractVector{T}, vy::AbstractVector{T}) where {T}
     gy = reshape(repeat(vy, inner = 1, outer = n), m, n)
     return gx, gy
 end
+
+function plotedges(edges)
+    x = Array{Float64,1}()
+    y = Array{Float64,1}()
+    for edge in edges
+        push!(x, getx(geta(edge)))
+        push!(x, getx(getb(edge)))
+        push!(x, NaN)
+        push!(y, gety(geta(edge)))
+        push!(y, gety(getb(edge)))
+        push!(y, NaN)
+    end
+    return x, y
+end
