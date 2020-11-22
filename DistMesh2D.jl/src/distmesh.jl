@@ -57,38 +57,6 @@ function shiftevenrows!(x, h0::Real)
     x[2:2:end, :] = x[2:2:end, :] .+ h0 / 2
 end
 
-function triangles(del, summ)
-    generators = Dict{Int64,Array{Int,1}}()
-    for (index, row) in enumerate(eachrow(summ))
-        generators[index] = []
-    end
-    for row in eachrow(del)
-        generators[row[5]] = append!(generators[row[5]], row[6])
-        generators[row[6]] = append!(generators[row[6]], row[5])
-    end
-    triangles = Array{Array{Int,1},1}()
-    for k in keys(generators)
-        for e in generators[k]
-            i = findall(in(generators[e]), generators[k])
-            common = generators[k][i]
-            for c in common
-                tri = sort([c, k, e])
-                if !(tri in triangles)
-                    push!(triangles, tri)
-                end
-            end
-        end
-    end
-    return map(
-        t -> [
-            Point(summ[t[1], 1], summ[t[1], 2]),
-            Point(summ[t[2], 1], summ[t[2], 2]),
-            Point(summ[t[3], 1], summ[t[3], 2]),
-        ],
-        triangles,
-    )
-end
-
 function vectorizededges(triangle)
     a = triangle[1]
     b = triangle[2]
