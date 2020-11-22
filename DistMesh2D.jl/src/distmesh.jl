@@ -58,49 +58,6 @@ function shiftevenrows!(x, h0::Real)
     x[2:2:end, :] = x[2:2:end, :] .+ h0 / 2
 end
 
-function pointstoforces(edges, scaler, Fscale, pfix, fh)
-    bars = Array{Point2D,1}()
-    barvec = Array{Array{Float64,1},1}()
-    points_to_fvces = Dict{Point2D,Array{Float64,1}}()
-    for edge in edges
-        b = unscaledpoint2d(getb(edge), scaler)
-        a = unscaledpoint2d(geta(edge), scaler)
-        push!(
-            bars,
-            Point(getx(a) + ((getx(b) - getx(a)) / 2), gety(a) + ((gety(b) - gety(a)) / 2)),
-        )
-        push!(
-            barvec,
-            [
-                getx(b) - getx(a)
-                gety(b) - gety(a)
-            ],
-        )
-        push!(points_to_fvces, geta(edge) => [0, 0])
-        push!(points_to_fvces, getb(edge) => [0, 0])
-    end
-    L = [sqrt(sum(v_sum .^ 2)) for v_sum in barvec]
-    hbars = [fh(getx(p), gety(p)) for p in bars]
-    L0 = hbars * Fscale * sqrt(sum(L .^ 2) / sum(hbars .^ 2))
-    Fvec = maximum.(L0 - L) ./ L .* barvec
-    iterator = 1
-    for edge in edges
-        a = geta(edge)
-        b = getb(edge)
-        prev_a = points_to_fvces[a]
-        prev_b = points_to_fvces[b]
-        push!(points_to_fvces, a => prev_a + (-Fvec[iterator]))
-        push!(points_to_fvces, b => prev_b + (Fvec[iterator]))
-        iterator = iterator + 1
-    end
-    for p in eachrow(pfix)
-        p = Point(p[1], p[2])
-        delete!(points_to_fvces, p)
-        push!(points_to_fvces, p => [0, 0])
-    end
-    return points_to_fvces
-end
-
 function finalpositions(points_to_fvces, scaler, deltat, fd, geps, deps, h0)
     new_p = Array{Point2D,1}()
     d_points = Array{Array{Float64,1},1}()
