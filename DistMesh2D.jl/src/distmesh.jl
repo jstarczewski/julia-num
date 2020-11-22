@@ -16,30 +16,30 @@ function distmesh2d(
     scaler = Scaler(bbox)
     v1, v2 = extractbox(bbox, h0, h1)
     x, y = meshgrid(v1, v2)
-    x = shiftevenrows!(x, h0)
+    shiftevenrows!(x, h0)
     p = [x[:] y[:]]
     p = [vcat(row) for row in eachrow(p) if fd(row) < -geps]
     r0 = [1 ./ fh(row...) .^ 2 for row in p]
-    r0_max = maximum(r0 ./ maximum(r0))
-    p = [vcat(scale_p(row, scaler)) for row in p if (rand(Float64, size(p)))[1] < r0_max]
+    r0max = maximum(r0 ./ maximum(r0))
+    p = [vcat(scaledpoint(row, scaler)) for row in p if (rand(Float64, size(p)))[1] < r0max]
     p = transpose(reshape(vcat(p...), 2, length(p)))
-    pfix = [vcat(scale_p(row, scaler)) for row in eachrow(pfix)]
+    pfix = [vcat(scaledpoint(row, scaler)) for row in eachrow(pfix)]
     pfix = transpose(reshape(vcat(pfix...), 2, length(pfix)))
     while true
         del, vor, summ = deldir(p[:, 1], p[:, 2])
         trigs = triangles(del, summ)
         line_edges, x, y = validedges(trigs, del, scaler, fd, geps)
-        points_to_fvces = pointstoforces(line_edges, scaler, Fscale, pfix)
-        final_p, move_index =
-            finalpositions(points_to_fvces, scaler, deltat, fd, geps, deps, h0)
-        if move_index < dptol
+        pointstofvces = pointstoforces(line_edges, scaler, Fscale, pfix, fh)
+        finalp, moveindex =
+            finalpositions(pointstofvces, scaler, deltat, fd, geps, deps, h0)
+        if moveindex < dptol
             break
         else
-            p = final_p
+            p = finalp
         end
     end
-    x = map(x -> unscale_x(x, scaler), x)
-    y = map(y -> unscale_y(y, scaler), y)
+    x = map(x -> unscalex(x, scaler), x)
+    y = map(y -> unscaley(y, scaler), y)
     return x, y
 end
 
@@ -53,8 +53,8 @@ function extractbox(bbox, h0::Real, h1::Real)
     return v1, v2
 end
 
-function shiftevenrows(x, h0::Real)
-    return x[2:2:end, :] = x[2:2:end, :] .+ h0 / 2
+function shiftevenrows!(x, h0::Real)
+    x[2:2:end, :] = x[2:2:end, :] .+ h0 / 2
 end
 
 function triangles(del, summ)
@@ -107,7 +107,7 @@ function validedges(triangles, del, scaler, fd, geps)
     inside_edges = Array{Array{Float64,2},1}()
     outside_edges = Array{Array{Float64,2},1}()
     for triangle in triangles
-        center = unscaled_point(
+        center = unscaledpoint2d(
             centroid(Primitive(triangle[1], triangle[2], triangle[3])),
             scaler,
         )
@@ -147,8 +147,8 @@ function pointstoforces(edges, scaler, Fscale, pfix, fh)
     barvec = Array{Array{Float64,1},1}()
     points_to_fvces = Dict{Point2D,Array{Float64,1}}()
     for edge in edges
-        b = unscaled_point(getb(edge), scaler)
-        a = unscaled_point(geta(edge), scaler)
+        b = unscaledpoint2d(getb(edge), scaler)
+        a = unscaledpoint2d(geta(edge), scaler)
         push!(
             bars,
             Point(getx(a) + ((getx(b) - getx(a)) / 2), gety(a) + ((gety(b) - gety(a)) / 2)),
@@ -189,7 +189,7 @@ function finalpositions(points_to_fvces, scaler, deltat, fd, geps, deps, h0)
     new_p = Array{Point2D,1}()
     d_points = Array{Array{Float64,1},1}()
     for (point, force) in points_to_fvces
-        p = unscaled_point(point, scaler)
+        p = unscaledpoint2d(point, scaler)
         np = [getx(p), gety(p)] + deltat * force
         push!(new_p, Point2D(np[1], np[2]))
         d = fd(np)
@@ -212,7 +212,7 @@ function finalpositions(points_to_fvces, scaler, deltat, fd, geps, deps, h0)
         end
     end
     final_p = unique(final_p)
-    final_p = map(p -> scale_p([p[1], p[2]], scaler), final_p)
+    final_p = map(p -> scaledpoint([p[1], p[2]], scaler), final_p)
     final_p = transpose(reshape(vcat(final_p...), 2, length(final_p)))
     return final_p, move_index(d_points, deltat, h0)
 end

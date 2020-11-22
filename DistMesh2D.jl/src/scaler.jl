@@ -1,4 +1,3 @@
-
 struct Scaler
     scale::Float64
     transx::Float64
@@ -10,32 +9,32 @@ struct Scaler
     end
 end
 
-function scale_p(p, scaler::Scaler)
+function scaledpoint(p, scaler::Scaler)
     return [(p[1] * scaler.scale) + scaler.transx, (p[2] * scaler.scale) + scaler.transy]
 end
 
-function unscale_p(p, scaler::Scaler)
+function unscaledpoint(p, scaler::Scaler)
     return [(p[1] - scaler.transx) / scaler.scale, (p[2] - scaler.transy) / scaler.scale]
 end
 
-function scaled_point(unscaled_point::Point2D, scaler::Scaler)
+function scaledpoint2d(unscaled_point::Point2D, scaler::Scaler)
     return Point(
         ((getx(unscaled_point) * scaler.scale) + scaler.transx),
         ((gety(unscaled_point) * scaler.scale) + scaler.transy),
     )
 end
 
-function unscaled_point(scaled_point::Point2D, scaler::Scaler)
+function unscaledpoint2d(scaled_point::Point2D, scaler::Scaler)
     return Point(
         (getx(scaled_point) - scaler.transx) / scaler.scale,
         (gety(scaled_point) - scaler.transy) / scaler.scale,
     )
 end
 
-function unscale_y(p, scaler)
-    return (p - scaler.transx) / scaler.scale
+function unscaley(y::Float64, scaler::Scaler)
+    return (y - scaler.transy) / scaler.scale
 end
 
-function unscale_x(p, scaler)
-    return (p - scaler.transy) / scaler.scale
+function unscalex(x::Float64, scaler::Scaler)
+    return (x - scaler.transx) / scaler.scale
 end
