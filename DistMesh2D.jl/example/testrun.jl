@@ -21,5 +21,9 @@ function eplot(x,y)
     Gadfly.plot(x = x, y = y, Geom.path, Coord.cartesian(fixed = true))
 end
 
-x, y = distmesh2d(dcrcc, fh, [-100.0 -100.0; 100.0 100.0], 7.0, [-100.0 -100.0; -100.0 100.0; 100.0 -100.0; 100.0 100.0])
+#x, y = distmesh2d(dcrcc, fh, [-100.0 -100.0; 100.0 100.0], 7.0, [-100.0 -100.0; -100.0 100.0; 100.0 -100.0; 100.0 100.0])
+function fdd(p)
+    return dcircle(p, 0.0, 0.0, 1.0)
+end
+x, y = distmesh2d(fdd, fh, [-1.0 -1.0; 1.0 1.0], 0.2)
 eplot(x,y)

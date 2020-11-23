@@ -9,11 +9,11 @@ struct Scaler
     end
 end
 
-function scaledpoint(p, scaler::Scaler)
+function scaledpoint(p::Array{Float64,1}, scaler::Scaler)
     return [(p[1] * scaler.scale) + scaler.transx, (p[2] * scaler.scale) + scaler.transy]
 end
 
-function unscaledpoint(p, scaler::Scaler)
+function unscaledpoint(p::Array{Float64,1}, scaler::Scaler)
     return [(p[1] - scaler.transx) / scaler.scale, (p[2] - scaler.transy) / scaler.scale]
 end
 

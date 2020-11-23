@@ -29,3 +29,20 @@ end
     expectedcenterpoint = Point(0.16666666666666666, 0.16666666666666666)
     @test unscaledcenterpoint(triangle, scaler) == expectedcenterpoint
 end
+
+@testset "Build vectoriezed edges" begin
+    a = Point(0.0, 0.0)
+    b = Point(0.5, 0.0)
+    c = Point(0.0, 0.5)
+    triangle = [a, b, c]
+    expectedvectorizededges = [
+        [0.0 0.0; 0.5 0.0],
+        [0.5 0.0; 0.0 0.5],
+        [0.0 0.5; 0.0 0.0],
+        [0.0 0.0; 0.0 0.5],
+        [0.0 0.5; 0.5 0.0],
+        [0.5 0.0; 0.0 0.0]
+    ]
+    vedges = vectorizededges(triangle)
+    @test size(vedges, 1) == size(findall(in(expectedvectorizededges), vedges), 1)
+end

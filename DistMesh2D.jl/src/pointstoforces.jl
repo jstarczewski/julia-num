@@ -2,7 +2,7 @@ function pointstoforces(
     edges::Array{GeometricalPredicates.Line2D{GeometricalPredicates.Point2D},1},
     scaler::Scaler,
     fscale::Float64,
-    pfix,
+    /pfix,
     fh::Function,
 )::Dict{Point2D,Array{Float64,1}}
     bars = Array{Point2D,1}()
@@ -11,7 +11,7 @@ function pointstoforces(
     for edge in edges
         b = unscaledpoint2d(getb(edge), scaler)
         a = unscaledpoint2d(geta(edge), scaler)
-        push!(bars, bar(a, b))
+        push!(bars, barcenter(a, b))
         push!(barvec, barvector(a, b))
         push!(pointstofvec, geta(edge) => [0, 0])
         push!(pointstofvec, getb(edge) => [0, 0])
@@ -20,7 +20,7 @@ function pointstoforces(
     return pointstoforces(edges, pointstofvec, fvec, pfix)
 end
 
-function bar(a::Point2D, b::Point2D)::Point2D
+function barcenter(a::Point2D, b::Point2D)::Point2D
     return Point(getx(a) + ((getx(b) - getx(a)) / 2), gety(a) + ((gety(b) - gety(a)) / 2))
 end
 
