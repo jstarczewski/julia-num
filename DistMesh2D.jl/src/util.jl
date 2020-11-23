@@ -5,7 +5,7 @@ function meshgrid(vx::AbstractVector{T}, vy::AbstractVector{T}) where {T}
     return gx, gy
 end
 
-function plotedges(edges)
+function plotedges(edges)::Tuple{Array{Float64,1}, Array{Float64,1}}
     x = Array{Float64,1}()
     y = Array{Float64,1}()
     for edge in edges
