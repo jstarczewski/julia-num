@@ -1,10 +1,20 @@
-include("vdmesh/GeometricalPredicates.jl/src/GeometricalPredicates.jl");
-include("vdmesh/VoronoiDelaunay.jl/src/VoronoiDelaunay.jl");
-include("vdmesh/DistMeshVD.jl")
+include("DistMesh2D.jl/GeometricalPredicates.jl/src/GeometricalPredicates.jl");
+include("DistMesh2D.jl/VoronoiDelaunay.jl/src/VoronoiDelaunay.jl");
+include("DistMesh2D.jl/src/DistMesh2D.jl")
+using Main.GeometricalPredicates
+using Main.VoronoiDelaunay
+using Main.DistMesh2D
+fdistance(p) = sqrt(sum(p .^ 2)) - 1;
+fedgelength(p) = 1.0;
+boundingbox = [-1.0 -1.0; 1.0 1.0];
+initdistance = 0.4;
+x, y = distmesh2d(fdistance, fedgelength, boundingbox, initdistance);
 
 fd(p) = max(dcb(p, -1,1,-1,1), -dcrc(p, 0,0,0.4))
 
 x, y = generate(fd, fh, [-1 -1; 1 1], 0.1, [-1 -1; -1 1; 1 -1; 1 1])
+
+
 
 using Gadfly
 
